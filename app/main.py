@@ -72,7 +72,8 @@ if setup_router is not None:
 app = VersionedFastAPI(
     unversioned_app,
     version_format="{major}",
-    prefix_format="/v{major}",
+    # prefix_format="/v{major}",
+    prefix_format="/api/v{major}",
     enable_latest=True,
 )
 
@@ -259,6 +260,74 @@ async def stream(request: Request):
 
     return event_source
 
+
+from sse_starlette.sse import EventSourceResponse   
+import cv2
+from app.facial_emotion_recognition import EmotionRecognitioner
+from app.action_recognition import ActionRecognitioner
+from app.util import get_score
+from app.blink_dection import BlinkDetection
+blink_detection = BlinkDetection()
+action_recognitioner = ActionRecognitioner()
+emotion_ecognitioner = EmotionRecognitioner()
+# camera = cv2.VideoCapture('app/video.mp4')
+camera = cv2.VideoCapture(0)
+
+emotions = []
+actions = []
+blink_nums = []
+blink_times = []
+scores = []
+
+@app.get(
+    "/sse/detection",
+    
+)
+async def detection(request: Request):
+    event_generator = status_event_generator(request)
+    return EventSourceResponse(event_generator)
+
+async def status_event_generator(request):
+    emotions.clear()
+    actions.clear()
+    blink_nums.clear()
+    blink_times.clear()
+    emotions.append("None")
+    actions.append("None")
+    blink_nums.append(-1)
+    blink_times.append(-1)
+    while not await request.is_disconnected():
+        success, frame = camera.read()
+        if success:
+            ret, emotion = emotion_ecognitioner.inference(frame)
+            if ret:
+                emotions.append(emotion)
+            actions.append(action_recognitioner.inference(frame))
+            # # # # # # # # # # # # # # # 
+            blink_nums.append(blink_detection.detection(frame))
+            blink_times.append(900)
+            # # # # # # # # # # # # # # # 
+            scores.append(get_score(actions[-1], emotions[-1], blink_nums[-1], blink_times[-1]))
+        yield {
+            "event": "message",
+            "data": {
+                'emotion': emotions[-1], 
+                'action':  actions[-1],
+                'blink_num':  blink_nums[-1],
+                'blink_time':  blink_times[-1],
+                'score': scores[-1]
+            }
+        }
+
+@app.get("/deteStop")
+def detectionStop():
+    return {
+        'emotions': emotions, 
+        'actions': actions, 
+        'blink_nums': blink_nums,
+        'blink_times': blink_times,
+        'scores': scores,
+        }
 
 warmup_running = False
 

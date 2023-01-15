@@ -217,3 +217,7 @@ Integrated Libraries:
 
 - [sse-starlette](https://github.com/sysid/sse-starlette)
 - [fastapi-versioning](https://github.com/DeanWay/fastapi-versioning)
+
+# 操作
+redis-server
+python -m uvicorn app.main:app --reload --host '0.0.0.0' --port 8888
