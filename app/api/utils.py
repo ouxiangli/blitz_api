@@ -102,7 +102,9 @@ class SSE:
     LN_FEE_REVENUE = "ln_fee_revenue"
     LN_FORWARD_SUCCESSES = "ln_forward_successes"
     WALLET_BALANCE = "wallet_balance"
-
+    
+    ATTENTION_RECOGNITION = "attention_recognition"
+    ATTENTION_WARNING = "attention_warning"
 
 # https://gist.github.com/risent/4cab3878d995bec7d1c2
 # https://firebase.blog/posts/2015/02/the-2120-ways-to-ensure-unique_68

@@ -79,6 +79,8 @@ class ActionRecognitioner():
 
     def inference(self, image):
         results = pose.process(image)
+        if results.pose_landmarks == None:
+            return False, self.actions[0]
         skeleton = []
         for i in range(23):
             landmark = results.pose_landmarks.landmark[i]
@@ -88,7 +90,7 @@ class ActionRecognitioner():
         pred_y = self.model(Tensor(x))
         idx = pred_y.argmax().item()
 
-        return self.actions[idx]
+        return True, self.actions[idx]
 
 # %%
 # action_recognitioner = ActionRecognitioner()

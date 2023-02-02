@@ -272,55 +272,114 @@ action_recognitioner = ActionRecognitioner()
 emotion_ecognitioner = EmotionRecognitioner()
 # camera = cv2.VideoCapture('app/video.mp4')
 camera = cv2.VideoCapture(0)
+import time
 
 emotions = []
 actions = []
 blink_nums = []
 blink_times = []
 scores = []
+switch = False
 
-@app.get(
-    "/sse/detection",
-    
-)
+@app.get("/detection")
 async def detection(request: Request):
-    event_generator = status_event_generator(request)
-    return EventSourceResponse(event_generator)
+    token = request.cookies.get("access_token")
+    if not token:
+        # No token in cookies found, try to get it from the Authorization header
+        token = request.headers.get("authorization")
 
-async def status_event_generator(request):
+    if not token:
+        # Raise an exception as there is not token found
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No authorization code.",
+        )
+
+    token = token.replace("Bearer ", "")
+    if not JWTBearer().verify_jwt(jwtoken=token):
+        # token is invalid
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization code.",
+        )
+    
+    global switch
+    switch = True
+    await status_event_generator()
+
+async def status_event_generator():
     emotions.clear()
     actions.clear()
     blink_nums.clear()
     blink_times.clear()
-    emotions.append("None")
-    actions.append("None")
-    blink_nums.append(-1)
-    blink_times.append(-1)
-    while not await request.is_disconnected():
+    index = 1
+    last_leave_time = -1
+
+    while switch:
         success, frame = camera.read()
         if success:
-            ret, emotion = emotion_ecognitioner.inference(frame)
-            if ret:
+            ret1, emotion = emotion_ecognitioner.inference(frame)
+            ret2, action = action_recognitioner.inference(frame)
+            if ret1 and ret2:
                 emotions.append(emotion)
-            actions.append(action_recognitioner.inference(frame))
-            # # # # # # # # # # # # # # # 
-            blink_nums.append(blink_detection.detection(frame))
-            blink_times.append(900)
-            # # # # # # # # # # # # # # # 
-            scores.append(get_score(actions[-1], emotions[-1], blink_nums[-1], blink_times[-1]))
-        yield {
-            "event": "message",
-            "data": {
-                'emotion': emotions[-1], 
+                actions.append(action)
+                blink_nums.append(blink_detection.detection(frame))
+                blink_times.append(900)
+                scores.append(get_score(actions[-1], emotions[-1], blink_nums[-1], blink_times[-1]))
+                last_leave_time = -1
+            else:
+                now = time.time()
+                if last_leave_time == -1:
+                    last_leave_time == now
+                elif last_leave_time - now > 120:
+                    await broadcast_sse_msg(SSE.ATTENTION_WARNING, {
+                        "index" : index,
+                        "time_stamp" : now,
+                        "message": "已离开超过2分钟,本次学习结束,停止记录专注力数据"
+                    })
+                    await detectionStop()
+                elif last_leave_time - now > 90:
+                    await broadcast_sse_msg(SSE.ATTENTION_WARNING, {
+                        'index' : index,
+                        "time_stamp" : now,
+                        "message": "已离开超过1分30秒,若持续离开时间超过2分钟,将自动结束本次学习"
+                    })
+                elif last_leave_time - now > 60:
+                    await broadcast_sse_msg(SSE.ATTENTION_WARNING, {
+                        'index' : index,
+                        "time_stamp" : now,
+                        "message": "已离开超过1分钟,若持续离开时间超过2分钟,将自动结束本次学习"
+                    })
+                elif last_leave_time - now > 30:
+                    await broadcast_sse_msg(SSE.ATTENTION_WARNING, {
+                        'index' : index,
+                        "time_stamp" : now,
+                        "message": "已离开超过30秒,请提醒孩子尽快回来,继续本次学习"
+                    })
+                elif last_leave_time - now > 15:
+                    await broadcast_sse_msg(SSE.ATTENTION_WARNING, {
+                        'index' : index,
+                        "time_stamp" : now,
+                        "message": "已离开超过15秒, 暂停本次学习, 暂停记录专注力数据"
+                    })
+                await asyncio.sleep(1)
+                continue
+        await broadcast_sse_msg(SSE.ATTENTION_RECOGNITION, {
+                'index' : index,
+                "time_stamp" : time.time(),
+                'emotion': emotions[-1],
                 'action':  actions[-1],
                 'blink_num':  blink_nums[-1],
                 'blink_time':  blink_times[-1],
                 'score': scores[-1]
-            }
-        }
+            })
+        index = index + 1
+        await asyncio.sleep(0.01)
 
 @app.get("/deteStop")
-def detectionStop():
+async def detectionStop():
+    global switch
+    switch = False
     return {
         'emotions': emotions, 
         'actions': actions, 
