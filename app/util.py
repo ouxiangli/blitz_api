@@ -15,7 +15,7 @@ emotion_score = {
     "Neutral": 1,
 }
 
-max_blink_num = 10
+max_blink_num = 0.5
 max_blink_time = 1000
 
 def get_score(action: str, emotion: str, blink_num: int, blink_time: int):

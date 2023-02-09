@@ -36,8 +36,10 @@ class BlinkDetection():
 
         self.EYE_AR_THRESH = EYE_AR_THRESH
         self.EYE_AR_CONSEC_FRAMES = EYE_AR_CONSEC_FRAMES
-        self.COUNTER = 0
-        self.TOTAL = 0
+        self.history = []
+        self.history_len = 30
+        self.history_score = 0
+        self.blink_nums = 0
 
         self.detector = dlib.get_frontal_face_detector()
         self.predictor = dlib.shape_predictor(PATH_PREDICTOR)
@@ -48,10 +50,9 @@ class BlinkDetection():
         self.rEnd = face_utils.FACIAL_LANDMARKS_IDXS["right_eye"][1]
 
     def reset(self):
-        self.TOTAL = 0
-        self.COUNTER = 0
-
-
+        self.history = []       
+        self.history_score = 0
+        self.blink_nums = 0
 
     def detection(self, frame):
         frame = imutils.resize(frame, width=720)
@@ -96,14 +97,15 @@ class BlinkDetection():
             '''
             # 第十三步：循环，满足条件的，眨眼次数+1
             if self.ear < self.EYE_AR_THRESH:  # 眼睛长宽比：0.2
-                self.COUNTER += 1
-
+                self.history.append(1)
+                self.history_score += 1
             else:
-                # 如果连续3次都小于阈值，则表示进行了一次眨眼活动
-                if self.COUNTER >= self.EYE_AR_CONSEC_FRAMES:  # 阈值：3
-                    self.TOTAL += 1
-                # 重置眼帧计数器
-                self.COUNTER = 0
+                self.history.append(0)
+
+            if(len(self.history) > self.history_len):
+                self.history_score -= self.history[0]
+                self.history.pop(0)
+            self.blink_nums = self.history_score / len(self.history)
 
             #seconds = time.time() - CURRENT_TIME
             #print("Frame Time take : {0}seconds".format(seconds))
@@ -133,4 +135,4 @@ class BlinkDetection():
         #     flag, encodeImage = cv2.imencode(".jpg",outframe)
         # yield ('--frame\r\n'  'Content-Type: image/jpeg\r\n\r\n' + bytearray(encodeImage) +'\r\n')
 
-        return self.TOTAL
+        return self.blink_nums, 900

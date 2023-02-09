@@ -314,6 +314,7 @@ async def status_event_generator():
     blink_times.clear()
     index = 1
     last_leave_time = -1
+    blink_detection.reset()
 
     while switch:
         success, frame = camera.read()
@@ -323,8 +324,9 @@ async def status_event_generator():
             if ret1 and ret2:
                 emotions.append(emotion)
                 actions.append(action)
-                blink_nums.append(blink_detection.detection(frame))
-                blink_times.append(900)
+                blink_num, blink_time = blink_detection.detection(frame)
+                blink_nums.append(blink_num)
+                blink_times.append(blink_time)
                 scores.append(get_score(actions[-1], emotions[-1], blink_nums[-1], blink_times[-1]))
                 last_leave_time = -1
             else:
