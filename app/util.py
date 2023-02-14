@@ -19,7 +19,7 @@ max_blink_num = 0.5
 max_blink_time = 1000
 
 def get_score(action: str, emotion: str, blink_num: int, blink_time: int):
-    if action == "None" or emotion == "None" or blink_num == -1 or blink_num == -1:
+    if action == "None" or emotion == "None" or blink_num == -1 or blink_time == -1:
         return 0
     blink_num = min(blink_num, max_blink_num)
     blink_time = min(blink_time, max_blink_time)
