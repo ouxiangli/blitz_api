@@ -314,11 +314,15 @@ async def status_event_generator():
     blink_times.clear()
     index = 1
     last_leave_time = -1
+    last_detect_time = -1
+    detect_begin_time = time.time()
+    effective_study_time = 0
     blink_detection.reset()
 
     while switch:
         success, frame = camera.read()
         if success:
+            now = time.time()
             ret1, emotion = emotion_ecognitioner.inference(frame)
             ret2, action = action_recognitioner.inference(frame)
             if ret1 and ret2:
@@ -328,54 +332,54 @@ async def status_event_generator():
                 blink_nums.append(blink_num)
                 blink_times.append(blink_time)
                 scores.append(get_score(actions[-1], emotions[-1], blink_nums[-1], blink_times[-1]))
-                last_leave_time = -1
+                if last_leave_time == -1 and scores[-1] >= 60:
+                    effective_study_time += now - max(last_detect_time, detect_begin_time)
+                else:
+                    last_leave_time = -1
+                last_detect_time = now
+                await broadcast_sse_msg(SSE.ATTENTION_RECOGNITION, {
+                    'index' : index,
+                    'time_stamp' : now,
+                    'full_study_time' : now - detect_begin_time,
+                    'effective_study_time' : effective_study_time,
+                    'emotion': emotions[-1],
+                    'action':  actions[-1],
+                    'blink_num':  blink_nums[-1],
+                    'blink_time':  blink_times[-1],
+                    'score': scores[-1]
+                })
+                index = index + 1
             else:
-                now = time.time()
                 if last_leave_time == -1:
-                    last_leave_time == now
-                elif last_leave_time - now > 120:
+                    last_leave_time = now
+                elif now - last_leave_time > 120:
                     await broadcast_sse_msg(SSE.ATTENTION_WARNING, {
-                        "index" : index,
                         "time_stamp" : now,
                         "message": "已离开超过2分钟,本次学习结束,停止记录专注力数据"
                     })
                     await detectionStop()
-                elif last_leave_time - now > 90:
+                elif now - last_leave_time > 90:
                     await broadcast_sse_msg(SSE.ATTENTION_WARNING, {
-                        'index' : index,
                         "time_stamp" : now,
                         "message": "已离开超过1分30秒,若持续离开时间超过2分钟,将自动结束本次学习"
                     })
-                elif last_leave_time - now > 60:
+                elif now - last_leave_time > 60:
                     await broadcast_sse_msg(SSE.ATTENTION_WARNING, {
-                        'index' : index,
                         "time_stamp" : now,
                         "message": "已离开超过1分钟,若持续离开时间超过2分钟,将自动结束本次学习"
                     })
-                elif last_leave_time - now > 30:
+                elif now - last_leave_time > 30:
                     await broadcast_sse_msg(SSE.ATTENTION_WARNING, {
-                        'index' : index,
                         "time_stamp" : now,
                         "message": "已离开超过30秒,请提醒孩子尽快回来,继续本次学习"
                     })
-                elif last_leave_time - now > 15:
+                elif now - last_leave_time > 15:
                     await broadcast_sse_msg(SSE.ATTENTION_WARNING, {
-                        'index' : index,
                         "time_stamp" : now,
                         "message": "已离开超过15秒, 暂停本次学习, 暂停记录专注力数据"
                     })
                 await asyncio.sleep(1)
                 continue
-        await broadcast_sse_msg(SSE.ATTENTION_RECOGNITION, {
-                'index' : index,
-                "time_stamp" : time.time(),
-                'emotion': emotions[-1],
-                'action':  actions[-1],
-                'blink_num':  blink_nums[-1],
-                'blink_time':  blink_times[-1],
-                'score': scores[-1]
-            })
-        index = index + 1
         await asyncio.sleep(0.01)
 
 @app.get("/deteStop")

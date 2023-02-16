@@ -24,10 +24,10 @@ def get_score(action: str, emotion: str, blink_num: int, blink_time: int):
     blink_num = min(blink_num, max_blink_num)
     blink_time = min(blink_time, max_blink_time)
 
-    return 0.2 * action_score[action] \
-            + 0.1 * emotion_score[emotion] \
-            + 0.4 * (max_blink_num - blink_num) / max_blink_num \
-            + 0.3 * blink_time / max_blink_time
+    return 20 * action_score[action] \
+            + 10 * emotion_score[emotion] \
+            + 40 * (max_blink_num - blink_num) / max_blink_num \
+            + 30 * blink_time / max_blink_time
 
 
 # ex
